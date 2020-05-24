@@ -19,7 +19,7 @@ const jsLoaders = () => {
     }
   ]
   if (isDev) {
-      loaders.push('eslint-loader')
+    loaders.push('eslint-loader')
   }
   return loaders
 }
@@ -71,23 +71,22 @@ module.exports = {
       {
         test: /\.s[ac]ss$/i,
         use: [
-          MiniCssExtractPlugin.loader,
+          {
+            loader: MiniCssExtractPlugin.loader,
+            options: {
+              hmr: isDev,
+              reloadAll: true
+            }
+          },
           'css-loader',
-          'sass-loader',
-      ],
-    },
-    { 
-      test: /\.js$/, 
-      exclude: /node_modules/, 
-      use: jsLoaders()
-      loader: {
-        loader: 'babel-loader',
-        options: {
-          presets: ['@babel/preset-env']
+          'sass-loader'
+        ],
+      },
+      {
+        test: /\.js$/,
+        exclude: /node_modules/,
+        use: jsLoaders()
       }
-  
-      }
-    }
-  ]
-}
+    ]
+  }
 }
