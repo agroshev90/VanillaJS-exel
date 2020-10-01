@@ -1,0 +1,964 @@
+Index: src/scss/_mixins.scss
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>@mixin button($color: green) {\n  height: 24px;\n  min-width: 24px;\n  padding: 3px;\n  text-align: center;\n  position: relative;\n  display: inline-block;\n  color: rgba(0,0,0, .7);\n\n  & > i {\n    font-size: 18px;\n  }\n\n  &:active, &.active {\n    color: $color;\n  }\n\n  &:hover {\n    background: #eee;\n    cursor: pointer;\n  }\n}\n\n@mixin clear-list() {\n  list-style: none;\n  padding: 0;\n  margin: 0;\n}
+===================================================================
+--- src/scss/_mixins.scss	(revision e881da6c6013c542cbe5288210b9e81ea8e98e16)
++++ src/scss/_mixins.scss	(date 1589897551346)
+@@ -5,9 +5,9 @@
+   text-align: center;
+   position: relative;
+   display: inline-block;
+-  color: rgba(0,0,0, .7);
++  color: rgba(0, 0, 0, .7);
+ 
+-  & > i {
++  & i {
+     font-size: 18px;
+   }
+ 
+@@ -21,8 +21,9 @@
+   }
+ }
+ 
++
+ @mixin clear-list() {
+   list-style: none;
+-  padding: 0;
+   margin: 0;
+-}
+\ No newline at end of file
++  padding: 0;
++}
+Index: .vscode/launch.json
+===================================================================
+--- .vscode/launch.json	(revision e881da6c6013c542cbe5288210b9e81ea8e98e16)
++++ .vscode/launch.json	(revision e881da6c6013c542cbe5288210b9e81ea8e98e16)
+@@ -1,15 +0,0 @@
+-{
+-  // Используйте IntelliSense, чтобы узнать о возможных атрибутах.
+-  // Наведите указатель мыши, чтобы просмотреть описания существующих атрибутов.
+-  // Для получения дополнительной информации посетите: https://go.microsoft.com/fwlink/?linkid=830387
+-  "version": "0.2.0",
+-  "configurations": [
+-    {
+-      "type": "chrome",
+-      "request": "launch",
+-      "name": "Launch Chrome against localhost",
+-      "url": "http://localhost:8080",
+-      "webRoot": "${workspaceFolder}"
+-    }
+-  ]
+-}
+\ No newline at end of file
+Index: src/components/toolbar/Toolbar.js
+===================================================================
+--- src/components/toolbar/Toolbar.js	(date 1589897551338)
++++ src/components/toolbar/Toolbar.js	(date 1589897551338)
+@@ -0,0 +1,41 @@
++import {createToolbar} from '@/components/toolbar/toolbar.template'
++import {$} from '@core/dom'
++import {ExcelStateComponent} from '@core/ExcelStateComponent'
++import {defaultStyles} from '@/constants'
++
++export class Toolbar extends ExcelStateComponent {
++  static className = 'excel__toolbar'
++
++  constructor($root, options) {
++    super($root, {
++      name: 'Toolbar',
++      listeners: ['click'],
++      subscribe: ['currentStyles'],
++      ...options
++    })
++  }
++
++  prepare() {
++    this.initState(defaultStyles)
++  }
++
++  get template() {
++    return createToolbar(this.state)
++  }
++
++  toHTML() {
++    return this.template
++  }
++
++  storeChanged(changes) {
++    this.setState(changes.currentStyles)
++  }
++
++  onClick(event) {
++    const $target = $(event.target)
++    if ($target.data.type === 'button') {
++      const value = JSON.parse($target.data.value)
++      this.$emit('toolbar:applyStyle', value)
++    }
++  }
++}
+Index: src/components/header/Header.js
+===================================================================
+--- src/components/header/Header.js	(date 1589897551336)
++++ src/components/header/Header.js	(date 1589897551336)
+@@ -0,0 +1,61 @@
++import {ExcelComponent} from '@core/ExcelComponent'
++import {$} from '@core/dom'
++import {changeTitle} from '@/redux/actions'
++import {defaultTitle} from '@/constants'
++import {debounce} from '@core/utils'
++import {ActiveRoute} from '@core/routes/ActiveRoute'
++
++export class Header extends ExcelComponent {
++  static className = 'excel__header'
++
++  constructor($root, options) {
++    super($root, {
++      name: 'Header',
++      listeners: ['input', 'click'],
++      ...options,
++    })
++  }
++
++  prepare() {
++    this.onInput = debounce(this.onInput, 300)
++  }
++
++  toHTML() {
++    const title = this.store.getState().title || defaultTitle
++    return `
++      <input type="text" class="input" value="${title}" />
++
++      <div>
++
++        <div class="button" data-button="remove">
++          <i class="material-icons" data-button="remove">delete</i>
++        </div>
++
++        <div class="button" data-button="exit">
++          <i class="material-icons" data-button="exit">exit_to_app</i>
++        </div>
++
++      </div>
++    `
++  }
++
++  onClick(event) {
++    const $target = $(event.target)
++
++    if ($target.data.button === 'remove') {
++      const decision = confirm('Вы действительно хотите удалить эту таблицу?')
++
++      if (decision) {
++        localStorage.removeItem('excel:' + ActiveRoute.param)
++        ActiveRoute.navigate('')
++      }
++    } else if ($target.data.button === 'exit') {
++      ActiveRoute.navigate('')
++    }
++  }
++
++  onInput(event) {
++    const $target = $(event.target)
++    this.$dispatch(changeTitle($target.text()))
++  }
++}
+Index: src/components/formula/Formula.js
+===================================================================
+--- src/components/formula/Formula.js	(date 1589897551336)
++++ src/components/formula/Formula.js	(date 1589897551336)
+@@ -0,0 +1,49 @@
++import {ExcelComponent} from '@core/ExcelComponent'
++import {$} from '@core/dom'
++
++export class Formula extends ExcelComponent {
++  static className = 'excel__formula'
++
++  constructor($root, options) {
++    super($root, {
++      name: 'Formula',
++      listeners: ['input', 'keydown'],
++      subscribe: ['currentText'],
++      ...options
++    })
++  }
++
++  toHTML() {
++    return `
++      <div class="info">fx</div>
++      <div id="formula" class="input" contenteditable spellcheck="false"></div>
++    `
++  }
++
++  init() {
++    super.init()
++
++    this.$formula = this.$root.find('#formula')
++
++    this.$on('table:select', $cell => {
++      this.$formula.text($cell.data.value)
++    })
++  }
++
++  storeChanged({currentText}) {
++    this.$formula.text(currentText)
++  }
++
++  onInput(event) {
++    const text = $(event.target).text()
++    this.$emit('formula:input', text)
++  }
++
++  onKeydown(event) {
++    const keys = ['Enter', 'Tab']
++    if (keys.includes(event.key)) {
++      event.preventDefault()
++      this.$emit('formula:done')
++    }
++  }
++}
+Index: src/components/excel/Excel.js
+===================================================================
+--- src/components/excel/Excel.js	(date 1589897551335)
++++ src/components/excel/Excel.js	(date 1589897551335)
+@@ -0,0 +1,48 @@
++import {$} from '@core/dom'
++import {Emitter} from '@core/Emitter'
++import {StoreSubscriber} from '@core/StoreSubscriber'
++import {updateDate} from '@/redux/actions'
++import {preventDefault} from '@core/utils'
++
++export class Excel {
++  constructor(options) {
++    this.components = options.components || []
++    this.store = options.store
++    this.emitter = new Emitter()
++    this.subscriber = new StoreSubscriber(this.store)
++  }
++
++  getRoot() {
++    const $root = $.create('div', 'excel')
++
++    const componentOptions = {
++      emitter: this.emitter,
++      store: this.store
++    }
++
++    this.components = this.components.map(Component => {
++      const $el = $.create('div', Component.className)
++      const component = new Component($el, componentOptions)
++      $el.html(component.toHTML())
++      $root.append($el)
++      return component
++    })
++
++    return $root
++  }
++
++  init() {
++    if (process.env.NODE_ENV === 'production') {
++      document.addEventListener('contextmenu', preventDefault)
++    }
++    this.store.dispatch(updateDate())
++    this.subscriber.subscribeComponents(this.components)
++    this.components.forEach(component => component.init())
++  }
++
++  destroy() {
++    this.subscriber.unsubscribeFromStore()
++    this.components.forEach(component => component.destroy())
++    document.removeEventListener('contextmenu', preventDefault)
++  }
++}
+Index: src/components/table/Table.js
+===================================================================
+--- src/components/table/Table.js	(date 1589897551337)
++++ src/components/table/Table.js	(date 1589897551337)
+@@ -0,0 +1,116 @@
++import {ExcelComponent} from '@core/ExcelComponent'
++import {$} from '@core/dom'
++import {createTable} from '@/components/table/table.template'
++import {resizeHandler} from '@/components/table/table.resize'
++import {isCell, matrix, nextSelector, shouldResize} from './table.functions'
++import {TableSelection} from '@/components/table/TableSelection'
++import * as actions from '@/redux/actions'
++import {defaultStyles} from '@/constants'
++import {parse} from '@core/parse'
++
++export class Table extends ExcelComponent {
++  static className = 'excel__table'
++
++  constructor($root, options) {
++    super($root, {
++      name: 'Table',
++      listeners: ['mousedown', 'keydown', 'input'],
++      ...options
++    })
++  }
++
++  toHTML() {
++    return createTable(20, this.store.getState())
++  }
++
++  prepare() {
++    this.selection = new TableSelection()
++  }
++
++  init() {
++    super.init()
++
++    this.selectCell(this.$root.find('[data-id="0:0"]'))
++
++    this.$on('formula:input', value => {
++      this.selection.current
++          .attr('data-value', value)
++          .text(parse(value))
++      this.updateTextInStore(value)
++    })
++
++    this.$on('formula:done', () => {
++      this.selection.current.focus()
++    })
++
++    this.$on('toolbar:applyStyle', value => {
++      this.selection.applyStyle(value)
++      this.$dispatch(actions.applyStyle({
++        value,
++        ids: this.selection.selectedIds
++      }))
++    })
++  }
++
++  selectCell($cell) {
++    this.selection.select($cell)
++    this.$emit('table:select', $cell)
++    const styles = $cell.getStyles(Object.keys(defaultStyles))
++    this.$dispatch(actions.changeStyles(styles))
++  }
++
++  async resizeTable(event) {
++    try {
++      const data = await resizeHandler(this.$root, event)
++      this.$dispatch(actions.tableResize(data))
++    } catch (e) {
++      console.warn('Resize error', e.message)
++    }
++  }
++
++  onMousedown(event) {
++    if (shouldResize(event)) {
++      this.resizeTable(event)
++    } else if (isCell(event)) {
++      const $target = $(event.target)
++      if (event.shiftKey) {
++        const $cells = matrix($target, this.selection.current)
++            .map(id => this.$root.find(`[data-id="${id}"]`))
++        this.selection.selectGroup($cells)
++      } else {
++        this.selectCell($target)
++      }
++    }
++  }
++
++  onKeydown(event) {
++    const keys = [
++      'Enter',
++      'Tab',
++      'ArrowLeft',
++      'ArrowRight',
++      'ArrowDown',
++      'ArrowUp'
++    ]
++
++    const {key} = event
++
++    if (keys.includes(key) && !event.shiftKey) {
++      event.preventDefault()
++      const id = this.selection.current.id(true)
++      const $next = this.$root.find(nextSelector(key, id))
++      this.selectCell($next)
++    }
++  }
++
++  updateTextInStore(value) {
++    this.$dispatch(actions.changeText({
++      id: this.selection.current.id(),
++      value
++    }))
++  }
++
++  onInput(event) {
++    this.updateTextInStore($(event.target).text())
++  }
++}
+Index: src/scss/_variables.scss
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>$header-height: 34px;\n$toolbar-height: 40px;\n$formula-height:24px;\n$row-height: 24px;\n$cell-width: 120px;\n$border-color: #c0c0c0; \n$info-cell-width: 40px;\n$dashboard-header-height: 64px;
+===================================================================
+--- src/scss/_variables.scss	(revision e881da6c6013c542cbe5288210b9e81ea8e98e16)
++++ src/scss/_variables.scss	(date 1589897551346)
+@@ -1,8 +1,9 @@
+ $header-height: 34px;
+ $toolbar-height: 40px;
+-$formula-height:24px;
+-$row-height: 24px;
++$formula-height: 24px;
++$info-cell-width: 40px;
+ $cell-width: 120px;
+-$border-color: #c0c0c0; 
+-$info-cell-width: 40px;
+-$dashboard-header-height: 64px;
+\ No newline at end of file
++$row-height: 24px;
++$db-header-height: 64px;
++$border-color: #c0c0c0;
++$primary-color: #3c74ff;
+Index: src/assets/dashboard.html
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>Vanilla JS Exel</title>\n  <link rel=\"shortcut icon\" href=\"favicon.ico\">\n  <link href=\"https://fonts.googleapis.com/icon?family=Material+Icons\"\n      rel=\"stylesheet\">\n</head>\n<body>\n  <div id=\"app\" >\n    <div class=\"db\">\n      <div class=\"db__header\">\n        <h1>Exel dashboard</h1>\n      </div>\n      <div class=\"db__new\">\n        <div class=\"db__view\">\n          <a href=\"#\" class=\"db_create\">\n            Новая <br> Таблица\n          </a>\n        </div>       \n      </div>\n      <div class=\"db__table db__view\">\n        <div class=\"db__list-header\">\n          <span>Название таблицы</span>\n          <span>Дата открытия </span>\n        </div>\n        <ul class=\"db__list\">\n          <li class=\"db__record\">\n            <a href=\"#\">Табица №1</a>\n            <strong>12.12.12</strong>\n          </li>\n        </ul>\n      </div>\n    </div>\n  </div>\n</body>\n</html>
+===================================================================
+--- src/assets/dashboard.html	(revision e881da6c6013c542cbe5288210b9e81ea8e98e16)
++++ src/assets/dashboard.html	(date 1589897551334)
+@@ -1,39 +1,58 @@
+-<!DOCTYPE html>
++<!doctype html>
+ <html lang="en">
+ <head>
+   <meta charset="UTF-8">
+-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+-  <title>Vanilla JS Exel</title>
++  <meta name="viewport"
++        content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
++  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+   <link rel="shortcut icon" href="favicon.ico">
+-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons"
+-      rel="stylesheet">
++  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
++  <title>Pure JavaScript Excel</title>
+ </head>
+ <body>
+-  <div id="app" >
+-    <div class="db">
+-      <div class="db__header">
+-        <h1>Exel dashboard</h1>
+-      </div>
+-      <div class="db__new">
+-        <div class="db__view">
+-          <a href="#" class="db_create">
+-            Новая <br> Таблица
+-          </a>
+-        </div>       
+-      </div>
+-      <div class="db__table db__view">
+-        <div class="db__list-header">
+-          <span>Название таблицы</span>
+-          <span>Дата открытия </span>
+-        </div>
+-        <ul class="db__list">
+-          <li class="db__record">
+-            <a href="#">Табица №1</a>
+-            <strong>12.12.12</strong>
+-          </li>
+-        </ul>
+-      </div>
+-    </div>
+-  </div>
++
++<div id="app">
++
++  <div class="db">
++
++    <div class="db__header">
++      <h1>Excel Dashboard</h1>
++    </div>
++
++    <div class="db__new">
++      <div class="db__view">
++        <a href="#" class="db__create">
++          Новая <br /> Таблица
++        </a>
++      </div>
++    </div>
++
++    <div class="db__table db__view">
++
++      <div class="db__list-header">
++        <span>Название</span>
++        <span>Дата открытия</span>
++      </div>
++
++      <ul class="db__list">
++
++        <li class="db__record">
++          <a href="#">Таблица номер 1</a>
++          <strong>12.06.2020</strong>
++        </li>
++
++        <li class="db__record">
++          <a href="#">Таблица номер 2</a>
++          <strong>12.06.2020</strong>
++        </li>
++
++      </ul>
++
++    </div>
++
++  </div>
++
++</div>
++
+ </body>
+-</html>
+\ No newline at end of file
++</html>
+Index: src/scss/formula.scss
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>@import \"variables\";\n@import \"mixins\";\n\n.exel__formula {\n  position: absolute;\n  left: 0;\n  right: 0;\n  top: $header-height + $toolbar-height;\n  height: $formula-height;\n  display: flex;\n  align-items: center;\n  border-bottom: 1px solid $border-color;\n  \n  .info {\n    font-size: 18px;\n    text-align: center;\n    font-style: italic;\n    border-right: 1px solid $border-color;\n    min-width: $info-cell-width;\n  }\n\n  .input {\n    padding: 4px;\n    font-size: 12px;\n    outline: none;\n    width: 100%;\n    height: 100%;\n    color: #000;\n  }\n}
+===================================================================
+--- src/scss/formula.scss	(revision e881da6c6013c542cbe5288210b9e81ea8e98e16)
++++ src/scss/formula.scss	(date 1589897551347)
+@@ -1,7 +1,8 @@
+ @import "variables";
+ @import "mixins";
+ 
+-.exel__formula {
++
++.excel__formula {
+   position: absolute;
+   left: 0;
+   right: 0;
+@@ -10,11 +11,11 @@
+   display: flex;
+   align-items: center;
+   border-bottom: 1px solid $border-color;
+-  
++
+   .info {
+     font-size: 18px;
+-    text-align: center;
+     font-style: italic;
++    text-align: center;
+     border-right: 1px solid $border-color;
+     min-width: $info-cell-width;
+   }
+@@ -27,4 +28,4 @@
+     height: 100%;
+     color: #000;
+   }
+-}
+\ No newline at end of file
++}
+Index: src/scss/header.scss
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>@import \"variables\";\n@import \"mixins\";\n\n.exel__header {\n  position: absolute;\n  top: 0;\n  right: 0;\n  left: 0;\n  height: $header-height;\n  padding: 8px 4px 0px;\n  display: flex;\n  justify-content: space-between;\n\n\n\n  & .input {\n    margin: 0;\n    padding: 2px 7px;\n    min-width: 1px;\n    color: black;\n    border: 1px solid black transparent;\n    border-radius: 2px;\n    height: 20px;\n    font-style: 18px;\n    line-height: 22px;\n    outline: none;\n\n    &:hover {\n      border: 1px solid $border-color;\n    }\n\n    &:focus {\n      border: 2px solid #1a73e8;\n    }   \n  }\n  & .button {\n    @include button(red);\n  }\n}
+===================================================================
+--- src/scss/header.scss	(revision e881da6c6013c542cbe5288210b9e81ea8e98e16)
++++ src/scss/header.scss	(date 1589897551347)
+@@ -1,27 +1,25 @@
+ @import "variables";
+ @import "mixins";
+ 
+-.exel__header {
++.excel__header {
+   position: absolute;
+   top: 0;
+   right: 0;
+   left: 0;
+   height: $header-height;
+-  padding: 8px 4px 0px;
++  padding: 8px 4px 0;
+   display: flex;
+   justify-content: space-between;
+ 
+-
+-
+   & .input {
+     margin: 0;
+     padding: 2px 7px;
+     min-width: 1px;
+-    color: black;
+-    border: 1px solid black transparent;
++    color: #000;
++    border: 1px solid transparent;
+     border-radius: 2px;
+     height: 20px;
+-    font-style: 18px;
++    font-size: 18px;
+     line-height: 22px;
+     outline: none;
+ 
+@@ -31,9 +29,11 @@
+ 
+     &:focus {
+       border: 2px solid #1a73e8;
+-    }   
++    }
+   }
+-  & .button {
++
++  .button {
+     @include button(red);
+   }
+-}
+\ No newline at end of file
++
++}
+Index: src/scss/table.scss
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>@import \"variables\";\n@import \"mixins\";\n\n.exel__table {\n  position: absolute;\n  right: 0;\n  left: 0;\n  top: $header-height + $formula-height + $toolbar-height;\n  overflow-x: auto;\n  padding-bottom: 2px; \n\n\n  .row {\n    display: flex;\n     flex-direction: row;\n     min-height: 20px;\n     height: $row-height;\n  }\n\n  .row-info {\n    display: flex;\n    justify-content: center;\n    align-items: center;\n    min-width: $info-cell-width;\n    height: 100%;\n    border: 1px solid $border-color;\n    background: #f8f9fa;\n    border-top: none;\n  }\n\n  .row-data {\n    display: flex;\n  }\n  \n  .column {\n    display: flex;\n    justify-content: center;\n    align-items: center;\n    background: #f8f9fa;\n    min-width: 40px;\n    width: $cell-width;\n    border: 1px solid $border-color;\n    height: 100%;\n    border-top: 0;\n    border-left: 0;\n  }\n\n\n  .cell {\n    min-width: 40px;\n    padding: 5px;\n    width: $cell-width;\n    height: 100%;\n    border: 1px solid #e2e3e3;\n    border-top: 0;\n    border-left: 0;\n    color: #111;\n    white-space: nowrap;\n    outline: none;\n    &.selected {\n      border: none;\n      outline: 2px solid #3c74ff;\n      z-index: 2;\n    }\n  }\n}
+===================================================================
+--- src/scss/table.scss	(revision e881da6c6013c542cbe5288210b9e81ea8e98e16)
++++ src/scss/table.scss	(date 1589897551348)
+@@ -1,23 +1,23 @@
+ @import "variables";
+ @import "mixins";
+ 
+-.exel__table {
++.excel__table {
+   position: absolute;
+-  right: 0;
+   left: 0;
+-  top: $header-height + $formula-height + $toolbar-height;
++  right: 0;
++  top: $header-height + $toolbar-height + $formula-height;
+   overflow-x: auto;
+-  padding-bottom: 2px; 
++  padding-bottom: 2px;
+ 
+-
+   .row {
+     display: flex;
+-     flex-direction: row;
+-     min-height: 20px;
+-     height: $row-height;
++    flex-direction: row;
++    min-height: 20px;
++    height: $row-height;
+   }
+ 
+   .row-info {
++    position: relative;
+     display: flex;
+     justify-content: center;
+     align-items: center;
+@@ -31,8 +31,9 @@
+   .row-data {
+     display: flex;
+   }
+-  
++
+   .column {
++    position: relative;
+     display: flex;
+     justify-content: center;
+     align-items: center;
+@@ -40,11 +41,10 @@
+     min-width: 40px;
+     width: $cell-width;
+     border: 1px solid $border-color;
+-    height: 100%;
+     border-top: 0;
+     border-left: 0;
++    height: 100%;
+   }
+-
+ 
+   .cell {
+     min-width: 40px;
+@@ -57,10 +57,44 @@
+     color: #111;
+     white-space: nowrap;
+     outline: none;
++
++
+     &.selected {
+       border: none;
+-      outline: 2px solid #3c74ff;
++      outline: 2px solid $primary-color;
+       z-index: 2;
+     }
+   }
+-}
+\ No newline at end of file
++
++  .col-resize, .row-resize {
++    position: absolute;
++    bottom: 0;
++    right: 0;
++    background: $primary-color;
++    opacity: 0;
++    z-index: 1000;
++
++    &:hover {
++      opacity: 1!important;
++    }
++  }
++
++  .col-resize {
++    top: 0;
++    width: 4px;
++
++    &:hover {
++      cursor: col-resize;
++    }
++  }
++
++  .row-resize {
++    left: 0;
++    height: 4px;
++
++    &:hover {
++      cursor: row-resize;
++    }
++  }
++
++}
+Index: src/scss/toolbar.scss
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>@import \"variables\";\n@import \"mixins\";\n\n.exel__toolbar {\n  position: absolute;\n  left: 0;\n  right: 0;\n  top: $header-height;\n  height: $toolbar-height;\n  border-top: 1px solid $border-color;\n  border-bottom: 1px solid $border-color;\n  padding: 7px 10px;\n  display: flex;\n\n  .button {\n    @include button(green)\n  }\n}
+===================================================================
+--- src/scss/toolbar.scss	(revision e881da6c6013c542cbe5288210b9e81ea8e98e16)
++++ src/scss/toolbar.scss	(date 1589897551348)
+@@ -1,7 +1,7 @@
+ @import "variables";
+ @import "mixins";
+ 
+-.exel__toolbar {
++.excel__toolbar {
+   position: absolute;
+   left: 0;
+   right: 0;
+@@ -13,6 +13,6 @@
+   display: flex;
+ 
+   .button {
+-    @include button(green)
++    @include button(green);
+   }
+-}
+\ No newline at end of file
++}
+Index: src/core/ExcelComponent.js
+===================================================================
+--- src/core/ExcelComponent.js	(date 1589897551339)
++++ src/core/ExcelComponent.js	(date 1589897551339)
+@@ -0,0 +1,57 @@
++import {DomListener} from '@core/DomListener'
++
++export class ExcelComponent extends DomListener {
++  constructor($root, options = {}) {
++    super($root, options.listeners)
++    this.name = options.name || ''
++    this.emitter = options.emitter
++    this.subscribe = options.subscribe || []
++    this.store = options.store
++    this.unsubscribers = []
++
++    this.prepare()
++  }
++
++  // Настраивааем наш компонент до init
++  prepare() {}
++
++  // Возвращает шаблон компонента
++  toHTML() {
++    return ''
++  }
++
++  // Уведомляем слушателей про событие event
++  $emit(event, ...args) {
++    this.emitter.emit(event, ...args)
++  }
++
++  // Подписываемся на событие event
++  $on(event, fn) {
++    const unsub = this.emitter.subscribe(event, fn)
++    this.unsubscribers.push(unsub)
++  }
++
++  $dispatch(action) {
++    this.store.dispatch(action)
++  }
++
++  // Сюда приходят только изменения по тем полям, на которые мы подписались
++  storeChanged() {}
++
++  isWatching(key) {
++    return this.subscribe.includes(key)
++  }
++
++  // Инициализируем компонент
++  // Добавляем DOM слушателей
++  init() {
++    this.initDOMListeners()
++  }
++
++  // Удаляем компонент
++  // Чистим слушатели
++  destroy() {
++    this.removeDOMListeners()
++    this.unsubscribers.forEach(unsub => unsub())
++  }
++}
+Index: src/scss/dashboard.scss
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>@import \"variables\";\n@import \"mixins\";\n\n.db {\n  &__header {\n    position: fixed;\n    left: 0;\n    right: 0;\n    top: 0;\n    height: $dashboard-header-height;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n    background: #fff;\n    box-shadow: 0 2px 5px 2px rgba(60, 64, 67, 0.15);\n    z-index: 1000;\n  }\n\n  &__new {\n    margin-top: $dashboard-header-height;\n    padding: 1.5rem;\n    background: #dadce0;\n  }\n\n  &_create {\n    width: 160px;\n    height: 160px;\n    background: #fff;\n    border-radius: 4px;\n    border: 1px solid #dadce0;\n    display: flex;\n    justify-content: center;\n    align-items: center;\n    font-size: 1.5rem;\n    text-decoration: none;\n    color: #000;\n    text-align: center;\n\n    &:hover {\n      cursor: pointer;\n      color: green;\n      border-color: green;\n    }\n  }\n\n  &__view {\n    max-width: 1000px;\n    margin: 0 auto;\n  }\n  \n  &__table {\n    padding: 1rem;\n  }\n\n  &__list-header {\n     display: flex;\n     justify-content: space-between;\n     color: #202124;\n     font-weight: 500;\n     font-size: 16px;\n     margin-bottom: 10px; \n     padding: 0 12px;\n  }\n\n  &__list {\n    @include clear-list;\n  }\n\n  &__record {\n    display: flex;\n    justify-content: space-between;\n    align-items: center;\n    padding: 12px 14px 12px 16px;\n    margin-bottom: 10px;\n\n    &:hover {\n       background: #e6f4ea;\n       border-radius: 25px;\n    }\n\n    a {\n      text-decoration: none;\n      cursor: pointer;\n      color: #202124;\n      font-size: 14px;\n\n      &:hover {\n        text-decoration: underline;\n      }\n    }\n  }\n}
+===================================================================
+--- src/scss/dashboard.scss	(revision e881da6c6013c542cbe5288210b9e81ea8e98e16)
++++ src/scss/dashboard.scss	(date 1589897551347)
+@@ -2,12 +2,13 @@
+ @import "mixins";
+ 
+ .db {
++
+   &__header {
+     position: fixed;
+     left: 0;
+     right: 0;
+     top: 0;
+-    height: $dashboard-header-height;
++    height: $db-header-height;
+     display: flex;
+     align-items: center;
+     justify-content: center;
+@@ -17,12 +18,12 @@
+   }
+ 
+   &__new {
+-    margin-top: $dashboard-header-height;
++    margin-top: $db-header-height;
+     padding: 1.5rem;
+     background: #dadce0;
+   }
+ 
+-  &_create {
++  &__create {
+     width: 160px;
+     height: 160px;
+     background: #fff;
+@@ -47,19 +48,19 @@
+     max-width: 1000px;
+     margin: 0 auto;
+   }
+-  
++
+   &__table {
+     padding: 1rem;
+   }
+ 
+   &__list-header {
+-     display: flex;
+-     justify-content: space-between;
+-     color: #202124;
+-     font-weight: 500;
+-     font-size: 16px;
+-     margin-bottom: 10px; 
+-     padding: 0 12px;
++    display: flex;
++    justify-content: space-between;
++    color: #202124;
++    font-weight: 500;
++    font-size: 16px;
++    margin-bottom: 10px;
++    padding: 0 12px;
+   }
+ 
+   &__list {
+@@ -74,8 +75,8 @@
+     margin-bottom: 10px;
+ 
+     &:hover {
+-       background: #e6f4ea;
+-       border-radius: 25px;
++      background: #e6f4ea;
++      border-radius: 25px;
+     }
+ 
+     a {
+@@ -89,4 +90,5 @@
+       }
+     }
+   }
+-}
+\ No newline at end of file
++
++}
+Index: src/core/DomListener.js
+===================================================================
+--- src/core/DomListener.js	(date 1589897551339)
++++ src/core/DomListener.js	(date 1589897551339)
+@@ -0,0 +1,40 @@
++import {capitalize} from '@core/utils'
++
++export class DomListener {
++  constructor($root, listeners = []) {
++    if (!$root) {
++      throw new Error(`No $root provided for DomListener!`)
++    }
++    this.$root = $root
++    this.listeners = listeners
++  }
++
++  initDOMListeners() {
++    this.listeners.forEach(listener => {
++      const method = getMethodName(listener)
++      if (!this[method]) {
++        const name = this.name || ''
++        throw new Error(
++            `Method ${method} is not implemented in ${name} Component`
++        )
++      }
++      this[method] = this[method].bind(this)
++      // Тоже самое что и addEventListener
++      this.$root.on(listener, this[method])
++    })
++  }
++
++  removeDOMListeners() {
++    this.listeners.forEach(listener => {
++      const method = getMethodName(listener)
++      this.$root.off(listener, this[method])
++    })
++  }
++}
++
++// input => onInput
++function getMethodName(eventName) {
++  return 'on' + capitalize(eventName)
++}
++
++
+Index: src/index.js
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>import './scss/index.scss'\n\nconsole.log('working')\n\n\nasync function start() {\n  return await Promise.resolve('as')\n}\nstart().then(console.log)
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- src/index.js	(revision e881da6c6013c542cbe5288210b9e81ea8e98e16)
++++ src/index.js	(date 1589897551334)
+@@ -1,9 +1,9 @@
++import {Router} from '@core/routes/Router'
++import {DashboardPage} from '@/pages/DashboardPage'
++import {ExcelPage} from '@/pages/ExcelPage'
+ import './scss/index.scss'
+ 
+-console.log('working')
+-
+-
+-async function start() {
+-  return await Promise.resolve('as')
+-}
+-start().then(console.log)
+\ No newline at end of file
++new Router('#app', {
++  dashboard: DashboardPage,
++  excel: ExcelPage
++})

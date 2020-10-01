@@ -1,9 +1,9 @@
+import {Router} from '@core/routes/Router'
+import {DashboardPage} from '@/pages/DashboardPage'
+import {ExcelPage} from '@/pages/ExcelPage'
 import './scss/index.scss'
 
-console.log('working')
-
-
-async function start() {
-  return await Promise.resolve('as')
-}
-start().then(console.log)
+new Router('#app', {
+  dashboard: DashboardPage,
+  excel: ExcelPage
+})
